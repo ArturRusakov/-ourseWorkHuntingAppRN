@@ -4,20 +4,18 @@ import Button from './src/components/Button';
 import { StyleSheet, Text, View, Image } from 'react-native';
 
 import * as FileSystem from 'expo-file-system';
-import * as SQLite from 'expo-sqlite';
+import * as SQLite from 'expo-sqlite/legacy';
 import { Asset } from 'expo-asset';
 
 import * as Location from 'expo-location';
-import { Camera, CameraType } from 'expo-camera';
+import { Camera, CameraType } from 'expo-camera/legacy';
 import * as MediaLibrary from 'expo-media-library';
 
 import NetInfo from '@react-native-community/netinfo';
 
 import axios from 'axios';
 
-import { testRow } from './queue';
-
-const db = SQLite.openDatabase('hunting.db','2.0');
+const db = SQLite.openDatabase('hunting.db', '2.0');
 const createTable = () => {
   db.transaction(tx => {
     tx.executeSql(
@@ -29,7 +27,7 @@ const createTable = () => {
   });
 
 };
-const addData = (photo, latitude, longitude,prey_data,prey_time) => {
+const addData = (photo, latitude, longitude, prey_data, prey_time) => {
   db.transaction(tx => {
     tx.executeSql(
       'INSERT INTO hunting (photo, latitude, longitude, preyData, preyTime) VALUES (?, ?, ?, ?, ?);',
@@ -54,7 +52,7 @@ const displayData = () => {
     );
   });
 };
-const clearData =  () => {
+const clearData = () => {
   db.transaction(tx => {
     tx.executeSql(
       'DELETE FROM hunting;',
@@ -73,7 +71,7 @@ const deleteItem = async (id) => {
   });
 };
 
-const preyData =  () =>{
+const preyData = () => {
   const Data = new Date();
   const Year = Data.getFullYear();
   const Month = Data.getMonth();
@@ -82,22 +80,22 @@ const preyData =  () =>{
   const Minutes = Data.getMinutes();
   const Seconds = Data.getSeconds();
 
-  const yearMounthDay = Year + '-'+ Month +'-'+ Day;
-  const hourMin = Hour + ':' + Minutes + ':' +  Seconds;
-  return {yearMounthDay,hourMin}
+  const yearMounthDay = Year + '-' + Month + '-' + Day;
+  const hourMin = Hour + ':' + Minutes + ':' + Seconds;
+  return { yearMounthDay, hourMin }
 }
 
-const callNodeFunction = async (photo, latitude, longtitude, prey_date, prey_time) => { 
-  try { 
-    const response = await axios.get('http://192.168.0.110:3000/api/sendData', { 
-      params: { 
-        photo, latitude, longtitude, prey_date, prey_time 
-      }, 
-    }); 
-    console.log(response.data.message); 
-  } catch (error) { 
-    console.log("App.js ->", error); 
-  } 
+const callNodeFunction = async (photo, latitude, longtitude, prey_date, prey_time) => {
+  try {
+    const response = await axios.get('http://192.168.0.110:3000/api/sendData', {
+      params: {
+        photo, latitude, longtitude, prey_date, prey_time
+      },
+    });
+    console.log(response.data.message);
+  } catch (error) {
+    console.log("App.js ->", error);
+  }
 };
 
 
@@ -113,7 +111,7 @@ export default function App() {
 
   var [imageBase64, setImageBase64] = useState(null);
 
-  const [netInfo,setNetInfo] = useState('');
+  const [netInfo, setNetInfo] = useState('');
 
   useEffect(() => {
     (async () => {
@@ -139,16 +137,16 @@ export default function App() {
 
   useEffect(() => {
     (async () => {
-    createTable();
+      createTable();
       //clearData();
     })();
   }, []);
 
-  
+
   useEffect(() => {
     NetInfo.fetch().then((state) => {
-      if (state.isConnected){
-        
+      if (state.isConnected) {
+
         const sql = "SELECT * FROM hunting";
         db.transaction(tx => {
           tx.executeSql(sql, [], (tx, results) => {
@@ -160,23 +158,25 @@ export default function App() {
               preyData: row.preyData,
               preyTime: row.preyTime,
             }));
-            console.log("isConnected ->",state.isConnected);
+            console.log("isConnected ->", state.isConnected);
             for (let i = 0; i < data.length; i++) {
-              callNodeFunction(data[i].photo, data[i].latitude, data[i].longitude, data[i].preyData, data[i].preyTime).then(() => {deleteItem(data[i].id)})
+              callNodeFunction(data[i].photo, data[i].latitude, data[i].longitude, data[i].preyData, data[i].preyTime).then(() => { deleteItem(data[i].id) })
             }
           });
         });
-      }else {
+      } else {
         console.log("App.js -> Отсутсвует подключение к интернету");
       }
     })
-  },[]); 
+  }, []);
 
   const takePicture = async () => {
     if (cameraRef) {
       try {
-        const data = await cameraRef.current.takePictureAsync({base64: true,
-          quality: 0.5,});
+        const data = await cameraRef.current.takePictureAsync({
+          base64: true,
+          quality: 0.5,
+        });
         setImageBase64(imageBase64 = data.base64);
         setImage(data.uri);
       } catch (e) {
@@ -214,7 +214,7 @@ export default function App() {
     let location = await getCurrentLocation();
     await saveImage();
     var photo = imageBase64
-    addData(photo,location["coords"]["latitude"],location["coords"]["longitude"],preyData().yearMounthDay,preyData().hourMin)
+    addData(photo, location["coords"]["latitude"], location["coords"]["longitude"], preyData().yearMounthDay, preyData().hourMin)
     return;
   };
 
@@ -230,47 +230,47 @@ export default function App() {
 
   return (
     <View style={styles.container}>
-    {!image ?
-      <Camera
-        style={styles.camera}
-        type={type}
-        flashMode={flash}
-        ref={cameraRef}
-      >
-        <View style={{
-          flexDirection: 'row',
-          justifyContent: 'space-between',
-          padding: 40,
-        }}>
-          <Button icon={'flash'}
-            color={flash === Camera.Constants.FlashMode.off ? 'gray' : '#f1f1f1'}
-            onPress={() => {
-              setFlash(flash === Camera.Constants.FlashMode.off ? Camera.Constants.FlashMode.on : Camera.Constants.FlashMode.off);
+      {!image ?
+        <Camera
+          style={styles.camera}
+          type={type}
+          flashMode={flash}
+          ref={cameraRef}
+        >
+          <View style={{
+            flexDirection: 'row',
+            justifyContent: 'space-between',
+            padding: 40,
+          }}>
+            <Button icon={'flash'}
+              color={flash === Camera.Constants.FlashMode.off ? 'gray' : '#f1f1f1'}
+              onPress={() => {
+                setFlash(flash === Camera.Constants.FlashMode.off ? Camera.Constants.FlashMode.on : Camera.Constants.FlashMode.off);
+              }} />
+            <Button icon={'retweet'} onPress={() => {
+              setType(type === CameraType.back ? CameraType.front : CameraType.back);
             }} />
-          <Button icon={'retweet'} onPress={() => {
-            setType(type === CameraType.back ? CameraType.front : CameraType.back);
-          }} />
-        </View>
-      </Camera>
-      :
-      <Image source={{ uri: image }} style={styles.camera} />
-    }
-    <View>
-      {image ?
-        <View style={{
-          flexDirection: 'row',
-          justifyContent: 'space-between',
-          paddingHorizontal: 50
-        }}>
-            <Button title={"Переделать фото"} icon="retweet" onPress={/*() => setImage(null)*/ handlePressReturnButton} />
-          <Button title={"Сохранить"} icon="check" onPress={handlePressSaveButton} />
-        </View>
+          </View>
+        </Camera>
         :
-        <Button title={'Сделать фото'} icon="camera" onPress={takePicture} />
+        <Image source={{ uri: image }} style={styles.camera} />
       }
+      <View>
+        {image ?
+          <View style={{
+            flexDirection: 'row',
+            justifyContent: 'space-between',
+            paddingHorizontal: 50
+          }}>
+            <Button title={"Переделать фото"} icon="retweet" onPress={/*() => setImage(null)*/ handlePressReturnButton} />
+            <Button title={"Сохранить"} icon="check" onPress={handlePressSaveButton} />
+          </View>
+          :
+          <Button title={'Сделать фото'} icon="camera" onPress={takePicture} />
+        }
+      </View>
     </View>
-  </View>
-);
+  );
 }
 
 const styles = StyleSheet.create({
