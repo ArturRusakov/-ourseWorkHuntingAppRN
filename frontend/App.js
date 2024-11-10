@@ -4,29 +4,29 @@ import Button from './src/components/Button';
 import { StyleSheet, Text, View, Image } from 'react-native';
 
 import * as FileSystem from 'expo-file-system';
-import * as SQLite from 'expo-sqlite/legacy';
+import * as SQLite from 'expo-sqlite';
 import { Asset } from 'expo-asset';
 
 import * as Location from 'expo-location';
-import { Camera, CameraType } from 'expo-camera/legacy';
+import { Camera } from 'expo-camera';
 import * as MediaLibrary from 'expo-media-library';
 
 import NetInfo from '@react-native-community/netinfo';
 
 import axios from 'axios';
 
-const db = SQLite.openDatabase('hunting.db', '2.0');
+const db = SQLite.openDatabase('hunting.db');
 const createTable = () => {
   db.transaction(tx => {
     tx.executeSql(
-      'CREATE TABLE IF NOT EXISTS hunting (id INTEGER PRIMARY KEY AUTOINCREMENT, photo TEXT, latitude TEXT, longitude TEXT, preyData TEXT,preyTime TEXT);',
+      'CREATE TABLE IF NOT EXISTS hunting (id INTEGER PRIMARY KEY AUTOINCREMENT, photo TEXT, latitude TEXT, longitude TEXT, preyData TEXT, preyTime TEXT);',
       [],
       () => console.log('Таблица создана успешно'),
       (_, error) => console.error('Ошибка при создании таблицы: ' + error)
     );
   });
-
 };
+
 const addData = (photo, latitude, longitude, prey_data, prey_time) => {
   db.transaction(tx => {
     tx.executeSql(
@@ -37,6 +37,7 @@ const addData = (photo, latitude, longitude, prey_data, prey_time) => {
     );
   });
 };
+
 const displayData = () => {
   db.transaction(tx => {
     tx.executeSql(
@@ -52,6 +53,7 @@ const displayData = () => {
     );
   });
 };
+
 const clearData = () => {
   db.transaction(tx => {
     tx.executeSql(
@@ -62,34 +64,32 @@ const clearData = () => {
     );
   });
 };
-const deleteItem = async (id) => {
 
-  // Удалить поле из таблицы
-  const sql = "DELETE FROM hunting WHERE id = ?";
+const deleteItem = async (id) => {
   db.transaction(tx => {
-    tx.executeSql(sql, [id]);
+    tx.executeSql('DELETE FROM hunting WHERE id = ?', [id]);
   });
 };
 
 const preyData = () => {
   const Data = new Date();
   const Year = Data.getFullYear();
-  const Month = Data.getMonth();
+  const Month = Data.getMonth() + 1;
   const Day = Data.getDate();
   const Hour = Data.getHours();
   const Minutes = Data.getMinutes();
   const Seconds = Data.getSeconds();
 
-  const yearMounthDay = Year + '-' + Month + '-' + Day;
-  const hourMin = Hour + ':' + Minutes + ':' + Seconds;
-  return { yearMounthDay, hourMin }
-}
+  const yearMounthDay = `${Year}-${Month}-${Day}`;
+  const hourMin = `${Hour}:${Minutes}:${Seconds}`;
+  return { yearMounthDay, hourMin };
+};
 
-const callNodeFunction = async (photo, latitude, longtitude, prey_date, prey_time) => {
+const callNodeFunction = async (photo, latitude, longitude, prey_date, prey_time) => {
   try {
     const response = await axios.get('http://192.168.0.110:3000/api/sendData', {
       params: {
-        photo, latitude, longtitude, prey_date, prey_time
+        photo, latitude, longitude, prey_date, prey_time
       },
     });
     console.log(response.data.message);
@@ -97,7 +97,6 @@ const callNodeFunction = async (photo, latitude, longtitude, prey_date, prey_tim
     console.log("App.js ->", error);
   }
 };
-
 
 export default function App() {
   const [hasCameraPermission, setHasCameraPermission] = useState(null);
@@ -109,47 +108,39 @@ export default function App() {
   const [location, setLocation] = useState(null);
   const [errorMsg, setErrorMsg] = useState(null);
 
-  var [imageBase64, setImageBase64] = useState(null);
-
-  const [netInfo, setNetInfo] = useState('');
+  const [imageBase64, setImageBase64] = useState(null);
 
   useEffect(() => {
     (async () => {
-      MediaLibrary.requestPermissionsAsync();
-      const cameraStatus = await Camera.requestCameraPermissionsAsync();
-      setHasCameraPermission(cameraStatus.status === 'granted');
-    })();
-  }, []);
-
-  useEffect(() => {
-    (async () => {
-
-      let { status } = await Location.requestForegroundPermissionsAsync();
-      if (status !== 'granted') {
-        setErrorMsg('Соглашение на отправку сообщения отклонено!');
-        return;
+      const { status } = await MediaLibrary.requestPermissionsAsync();
+      if (status === 'granted') {
+        const cameraStatus = await Camera.requestCameraPermissionsAsync();
+        setHasCameraPermission(cameraStatus.status === 'granted');
       }
-
-      let currentLocation = await Location.getCurrentPositionAsync({});
-      setLocation(location);
     })();
   }, []);
 
   useEffect(() => {
     (async () => {
-      createTable();
-      //clearData();
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      if (status === 'granted') {
+        const currentLocation = await Location.getCurrentPositionAsync({});
+        setLocation(currentLocation);
+      } else {
+        setErrorMsg('Соглашение на отправку сообщения отклонено!');
+      }
     })();
   }, []);
 
+  useEffect(() => {
+    createTable();
+  }, []);
 
   useEffect(() => {
-    NetInfo.fetch().then((state) => {
+    const unsubscribe = NetInfo.addEventListener(state => {
       if (state.isConnected) {
-
-        const sql = "SELECT * FROM hunting";
         db.transaction(tx => {
-          tx.executeSql(sql, [], (tx, results) => {
+          tx.executeSql('SELECT * FROM hunting', [], (_, results) => {
             const data = results.rows._array.map(row => ({
               id: row.id,
               photo: row.photo,
@@ -158,32 +149,30 @@ export default function App() {
               preyData: row.preyData,
               preyTime: row.preyTime,
             }));
-            console.log("isConnected ->", state.isConnected);
-            for (let i = 0; i < data.length; i++) {
-              callNodeFunction(data[i].photo, data[i].latitude, data[i].longitude, data[i].preyData, data[i].preyTime).then(() => { deleteItem(data[i].id) })
-            }
+            data.forEach(async item => {
+              await callNodeFunction(item.photo, item.latitude, item.longitude, item.preyData, item.preyTime);
+              deleteItem(item.id);
+            });
           });
         });
       } else {
         console.log("App.js -> Отсутсвует подключение к интернету");
       }
-    })
+    });
+    return () => unsubscribe();
   }, []);
 
   const takePicture = async () => {
-    if (cameraRef) {
+    if (cameraRef.current) {
       try {
-        const data = await cameraRef.current.takePictureAsync({
-          base64: true,
-          quality: 0.5,
-        });
-        setImageBase64(imageBase64 = data.base64);
+        const data = await cameraRef.current.takePictureAsync({ base64: true, quality: 0.5 });
+        setImageBase64(data.base64);
         setImage(data.uri);
       } catch (e) {
         console.log(e);
       }
     }
-  }
+  };
 
   const saveImage = async () => {
     if (image) {
@@ -195,37 +184,38 @@ export default function App() {
         console.log(e);
       }
     }
-  }
+  };
 
   const getCurrentLocation = async () => {
-    let { status } = await Location.requestForegroundPermissionsAsync();
-    if (status !== 'granted') {
-      console.log('Permission to access location was denied');
-      return;
+    const { status } = await Location.requestForegroundPermissionsAsync();
+    if (status === 'granted') {
+      const location = await Location.getCurrentPositionAsync({});
+      alert("Геолокация фото сохранена");
+      return location;
     }
-
-    let location = await Location.getCurrentPositionAsync({});
-    alert("Геолокация фото сохранена")
-    console.log(location);
-    return location;
-  }
+  };
 
   const handlePressSaveButton = async () => {
-    let location = await getCurrentLocation();
-    await saveImage();
-    var photo = imageBase64
-    addData(photo, location["coords"]["latitude"], location["coords"]["longitude"], preyData().yearMounthDay, preyData().hourMin)
-    return;
+    const currentLocation = await getCurrentLocation();
+    if (currentLocation) {
+      await saveImage();
+      addData(
+        imageBase64,
+        currentLocation.coords.latitude,
+        currentLocation.coords.longitude,
+        preyData().yearMounthDay,
+        preyData().hourMin
+      );
+    }
   };
 
   const handlePressReturnButton = async () => {
     setImage(null);
     displayData();
-    return;
   };
 
   if (hasCameraPermission === false) {
-    return <Text>No access to camera</Text>
+    return <Text>No access to camera</Text>;
   }
 
   return (
@@ -244,11 +234,14 @@ export default function App() {
           }}>
             <Button icon={'flash'}
               color={flash === Camera.Constants.FlashMode.off ? 'gray' : '#f1f1f1'}
-              onPress={() => {
-                setFlash(flash === Camera.Constants.FlashMode.off ? Camera.Constants.FlashMode.on : Camera.Constants.FlashMode.off);
-              }} />
+              onPress={() => setFlash(
+                flash === Camera.Constants.FlashMode.off
+                  ? Camera.Constants.FlashMode.on
+                  : Camera.Constants.FlashMode.off
+              )}
+            />
             <Button icon={'retweet'} onPress={() => {
-              setType(type === CameraType.back ? CameraType.front : CameraType.back);
+              setType(type === Camera.Constants.Type.back ? Camera.Constants.Type.front : Camera.Constants.Type.back);
             }} />
           </View>
         </Camera>
@@ -262,7 +255,7 @@ export default function App() {
             justifyContent: 'space-between',
             paddingHorizontal: 50
           }}>
-            <Button title={"Переделать фото"} icon="retweet" onPress={/*() => setImage(null)*/ handlePressReturnButton} />
+            <Button title={"Переделать фото"} icon="retweet" onPress={handlePressReturnButton} />
             <Button title={"Сохранить"} icon="check" onPress={handlePressSaveButton} />
           </View>
           :
